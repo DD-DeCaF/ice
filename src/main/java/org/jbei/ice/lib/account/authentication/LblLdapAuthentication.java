@@ -127,7 +127,7 @@ public class LblLdapAuthentication implements IAuthentication {
             String employeeNumber = "";
 
             //has to look up employee number for binding
-            int idx = userName.indexOf("@lbl.gov");
+            int idx = userName.indexOf("@biosustain.dtu.dk");
             if (idx > 0)
                 userName = userName.substring(0, idx);
             //String filter = "(uid=" + userName + ")";

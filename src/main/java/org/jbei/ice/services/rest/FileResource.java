@@ -5,6 +5,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 import org.glassfish.jersey.media.multipart.FormDataParam;
+import org.jbei.ice.lib.account.UserApiKeys;
 import org.jbei.ice.lib.account.UserSessions;
 import org.jbei.ice.lib.bulkupload.FileBulkUpload;
 import org.jbei.ice.lib.common.logging.Logger;
@@ -276,7 +277,7 @@ public class FileResource extends RestResource {
             }
 
             final String fileName = contentDispositionHeader.getFileName();
-            final String userId = UserSessions.getUserIdBySession(sessionId);
+            final String userId = getUserId(sessionId);
 
             PartSequence partSequence;
             if (StringUtils.isEmpty(recordId)) {
