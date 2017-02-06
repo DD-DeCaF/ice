@@ -1,0 +1,3 @@
+FROM freedomkk/tomcat-maven
+
+RUN mvn site
