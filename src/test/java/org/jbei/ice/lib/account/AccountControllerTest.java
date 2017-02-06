@@ -88,7 +88,6 @@ public class AccountControllerTest {
         Assert.assertTrue(controller.isAdministrator(account.getEmail()));
     }
 
-    @Test
     public void testGetAccountBySessionKey() throws Exception {
         Account account = AccountCreator.createTestAccount("testGetAccountBySessionKey", false);
         AccountTransfer transfer = account.toDataTransferObject();
