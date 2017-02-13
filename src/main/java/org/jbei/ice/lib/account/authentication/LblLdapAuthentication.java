@@ -57,27 +57,34 @@ public class LblLdapAuthentication implements IAuthentication {
         }
 
         loginId = loginId.toLowerCase().trim();
-        String authenticatedEmail;
-        //authenticatedEmail = authenticateWithLDAP(loginId, password);
-        if (true) {
-            try {
-                authenticatedEmail = authenticateWithLDAP(loginId, password);
-                if (authenticatedEmail == null) {
-                    return null;
-                }
-            } catch (AuthenticationException ae) {
-                return null;
-            }
 
-            Account account = checkCreateAccount(authenticatedEmail);
-            if (account == null)
-                return null;
-            return account.getEmail();
+        String ldap_email = LDAPAuthentication(loginId, password);
+
+        if (ldap_email != null) {
+            return ldap_email;
         } else {
             LocalAuthentication localBackend = new LocalAuthentication();
             return localBackend.authenticates(loginId, password);
         }
     }
+
+    private String LDAPAuthentication(String loginId, String password) throws AuthenticationException {
+        String authenticatedEmail;
+        try {
+            authenticatedEmail = authenticateWithLDAP(loginId, password);
+            if (authenticatedEmail == null) {
+                return null;
+            }
+        } catch (AuthenticationException ae) {
+            return null;
+        }
+
+        Account account = checkCreateAccount(authenticatedEmail);
+        if (account == null)
+            return null;
+        return account.getEmail();
+    }
+
 
     /**
      * Intended to be called when the credentials successfully authenticate with ldap.
@@ -141,7 +148,14 @@ public class LblLdapAuthentication implements IAuthentication {
             }
 
             String LDAP_QUERY = "ou=DTUBaseUsers,dc=win,dc=dtu,dc=dk";
-            SearchResult searchResult = dirContext.search(LDAP_QUERY, filter, cons).nextElement();
+            NamingEnumeration searchResult_list = dirContext.search(LDAP_QUERY, filter, cons);
+
+            if (!searchResult_list.hasMore())
+            {
+                return null;
+            }
+
+            SearchResult searchResult = (SearchResult) searchResult_list.nextElement();
 
             Attributes attributes = searchResult.getAttributes();
             //employeeNumber = (String) attributes.get("lblempnum").get();
