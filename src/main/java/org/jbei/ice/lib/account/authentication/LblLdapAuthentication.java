@@ -5,6 +5,7 @@ import org.jbei.ice.lib.common.logging.Logger;
 import org.jbei.ice.storage.DAOFactory;
 import org.jbei.ice.storage.model.Account;
 
+import javax.naming.CommunicationException;
 import javax.naming.Context;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
@@ -147,6 +148,10 @@ public class LblLdapAuthentication implements IAuthentication {
                 dirContext = getContext();
             }
 
+            if (dirContext == null){
+                return null;
+            }
+
             String LDAP_QUERY = "ou=DTUBaseUsers,dc=win,dc=dtu,dc=dk";
             NamingEnumeration searchResult_list = dirContext.search(LDAP_QUERY, filter, cons);
 
@@ -189,7 +194,9 @@ public class LblLdapAuthentication implements IAuthentication {
                 }
             }
             try {
-                dirContext.close();
+                if (dirContext != null){
+                    dirContext.close();
+                }
             } catch (NamingException e) {
                 throw new AuthenticationException("Got LDAP NamingException", e);
             }
@@ -232,10 +239,10 @@ public class LblLdapAuthentication implements IAuthentication {
         Hashtable<String, String> env = new Hashtable<String, String>();
         env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
         env.put("com.sun.jndi.ldap.connect.pool", "true");
-        env.put("com.sun.jndi.ldap.connect.pool.timeout", "10000");
+        env.put("com.sun.jndi.ldap.connect.pool.timeout", "100");
 
         env.put("com.sun.jndi.ldap.read.timeout", "5000");
-        env.put("com.sun.jndi.ldap.connect.timeout", "10000");
+        env.put("com.sun.jndi.ldap.connect.timeout", "100");
 
         env.put(Context.PROVIDER_URL, ldapProvider);
         env.put(Context.SECURITY_AUTHENTICATION, "simple");
@@ -248,6 +255,8 @@ public class LblLdapAuthentication implements IAuthentication {
         LdapContext ctx = null;
         try {
             ctx = new InitialLdapContext(env, null);
+        } catch (CommunicationException e){
+            return null;
         } catch (NamingException e) {
             e.printStackTrace();
             throw e;
