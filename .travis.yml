@@ -6,7 +6,7 @@ script: mvn package
 deploy:
   provider: releases
   api_key:
-    secure: $SECRET
+    secure: rWhpUQRQpEyT7lL000YzfdSEvssiRgqXTr/cdr4RkZOw/UHzSQw7wKVxIemtsrkmuxX6Dh1kgde0zG5y3h6xv9fSF3LCtU7jo+lDDlp+KhaUp4yS+mYmOYpIw1HJy/ywG0q3C9CPVNJRhoojkIZpqVZ7aZj3jGBw/CyTBjkSghfOIzNYuKd1mRNB34zdrIiaC6Rq7zQGQWS9SHZEKYHIk7NxkIQ0RmcT2NDxxHciE/EmVmSUkCG9D/G6/0vwFTN56HTWUVATYXOp41VO0u94bzb5rNZ7JgxrI5vMayS0TemaVhVI5GeP6bocVcLjTAOdXIma/GKQyfFXiKTGMMP+5i7y04I18HW4c/OhJ32n4vFVC0HO0MPRCPsFfd4SDhONm5DHxFgjpXbPyEWvtjwViqxPbwXRmKgi8RN3FZtcLGsy8yLsPyJdaH3sezNphQLTxlj5nanAcFYXPtCj4myP7T2hKQAKwUbeMuNoboO+sj24XbT7o2/53h/8Y6gFSZ5+Lf6Ui9KufouVOS30K6WVVH6xHXiW+xFRS1WnesUCNceIh1uJZsR2BSHGadMSXzRkyLSoinNWzR52o+2RH2OAXjMa4blWy3xH7+ju7VN9XKpu0tErvFpGp3lxYTBiICfR4FsfSycete/62libI3R9Lp1xUoQj9gHRkxK59mk6OuY=
   file_glob: true
   file: '/home/travis/build/DD-DeCaF/ice/target/ice-*.war'
   skip_cleanup: true
