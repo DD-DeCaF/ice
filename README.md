@@ -20,9 +20,9 @@ To install in a production environment, please [consult our manual](http://ice.j
 ### Development
 To set up a development environment or local machine installation make sure you have the following dependencies installed
 
-* [Java JDK 8] (http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html)
-* [Maven 3] (https://maven.apache.org/download.cgi)
-* [Git] (https://git-scm.com/downloads) 
+* [Java JDK 8](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html)
+* [Maven 3](https://maven.apache.org/download.cgi)
+* [Git](https://git-scm.com/downloads)
 
 Command line installation steps:
 
@@ -31,23 +31,25 @@ Command line installation steps:
         git clone https://github.com/JBEI/ice.git ./ice
         cd ice
 
-* Generate a self-signed certificate
+* Generate a self-signed certificate. When prompted for a password, use **changeit**.
+
+        keytool -genkey -alias tomcat -keyalg RSA -keystore ./.keystore
 
 * Start the built in jetty server. This may take a few minutes to download additional dependencies.
         
         mvn jetty:run
 
-* Access the application at [https://localhost:8443] (https://localhost:8443)
+* Access the application at [https://localhost:8443](https://localhost:8443)
 
 * Ctrl + C to stop the application
 
 
 ## Links
-* [Documentation] (http://ice.jbei.org/) including user manual and API documentation
-* [ICE Google Group] (http://groups.google.com/group/gd-ice)
-* Build Status: 
+* [Documentation](http://ice.jbei.org/) including user manual and API documentation
+* [ICE Google Group](http://groups.google.com/group/gd-ice)
 
+## Build Status:
 [![Build Status](https://travis-ci.org/JBEI/ice.svg?branch=dev)](https://travis-ci.org/JBEI/ice)
 
 ## Related Projects
-[Vector Editor] (https://github.com/JBEI/vectoreditor) is used in ICE to display and edit sequences
+[Vector Editor](https://github.com/JBEI/vectoreditor) is used in ICE to display and edit sequences

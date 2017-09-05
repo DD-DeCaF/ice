@@ -1,6 +1,7 @@
 package org.jbei.ice.lib.folder;
 
 import org.apache.commons.lang3.StringUtils;
+import org.jbei.ice.lib.access.PermissionException;
 import org.jbei.ice.lib.access.PermissionsController;
 import org.jbei.ice.lib.account.AccountController;
 import org.jbei.ice.lib.account.AccountTransfer;
@@ -85,7 +86,7 @@ public class FolderController {
      */
     public ArrayList<FolderDetails> getPublicFolders() {
         Group publicGroup = groupController.createOrRetrievePublicGroup();
-        Set<Folder> folders = permissionDAO.getFolders(publicGroup);
+        List<Folder> folders = permissionDAO.getFolders(publicGroup);
         ArrayList<FolderDetails> list = new ArrayList<>();
         for (Folder folder : folders) {
             FolderDetails details = folder.toDataTransferObject();
@@ -113,7 +114,7 @@ public class FolderController {
         groups.add(publicGroup);
 
         EntryDAO entryDAO = DAOFactory.getEntryDAO();
-        Set<Entry> results = entryDAO.retrieveVisibleEntries(null, groups, sort, asc, offset, limit, null);
+        List<Entry> results = entryDAO.retrieveVisibleEntries(null, groups, sort, asc, offset, limit, null);
         long visibleCount = entryDAO.visibleEntryCount(null, groups, null);
 
         FolderDetails details = new FolderDetails();
@@ -167,6 +168,17 @@ public class FolderController {
         return folders;
     }
 
+    /**
+     * Updates the folder referenced by the folderId with the passed folder details.
+     * If the propagate parameter is set (differs from existing folder's value) then the contained entries are updated
+     * accordingly.
+     *
+     * @param userId   unique identifier for user making request. Must have write privileges
+     * @param folderId unique identifier for folder being updated
+     * @param details  new details to update
+     * @return updated folder's details
+     * @throws PermissionException if user making request doesn't have the appropriate privileges
+     */
     public FolderDetails update(String userId, long folderId, FolderDetails details) {
         Folder folder = dao.get(folderId);
         if (folder == null)
@@ -204,7 +216,11 @@ public class FolderController {
             throw new IllegalArgumentException("Folder " + folder.getId() + " is not a transferred folder");
 
         // change the status and those of the entries contained to "ok"
-        if (dao.setFolderEntryVisibility(folder.getId(), Visibility.OK) == 0)
+        List<Long> entryIds = dao.getFolderContentIds(folder.getId(), null, false);
+        if (entryIds == null || entryIds.isEmpty())
+            return folder.toDataTransferObject();
+
+        if (DAOFactory.getEntryDAO().setEntryVisibility(entryIds, Visibility.OK) == 0)
             return null;
 
         folder.setType(FolderType.PRIVATE);
@@ -237,6 +253,7 @@ public class FolderController {
 
             case PRIVATE:
             case TRANSFERRED:
+            case SHARED:
                 Folder folder = dao.get(folderId);
                 if (folder == null)
                     return null;
@@ -244,15 +261,15 @@ public class FolderController {
                 if (!accountController.isAdministrator(userId) && !folder.getOwnerEmail().equalsIgnoreCase(userId)) {
                     String errorMsg = userId + ": insufficient permissions to delete folder " + folderId;
                     Logger.warn(errorMsg);
-                    return null;
+                    throw new PermissionException(errorMsg);
                 }
 
                 details = folder.toDataTransferObject();
                 long folderSize = dao.getFolderSize(folderId, null, true);
                 details.setCount(folderSize);
 
-                dao.delete(folder);
                 permissionDAO.clearPermissions(folder);
+                dao.delete(folder);
                 return details;
 
             default:
@@ -324,7 +341,7 @@ public class FolderController {
 
         Set<Group> groups = account.getGroups();
         groups.remove(groupController.createOrRetrievePublicGroup());
-        Set<Folder> sharedFolders = DAOFactory.getPermissionDAO().retrieveFolderPermissions(account, groups);
+        List<Folder> sharedFolders = DAOFactory.getPermissionDAO().retrieveFolderPermissions(account, groups);
         if (sharedFolders == null)
             return null;
 

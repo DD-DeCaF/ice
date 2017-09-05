@@ -34,7 +34,7 @@ public class UserApiKeysTest {
         Assert.assertNotNull(accessKey);
         Assert.assertNotNull(accessKey.getToken());
 
-        AccessKey accessKey2 = apiKeys.requestKey("app.test");
+        AccessKey accessKey2 = apiKeys.requestKey("app.test2");
         Assert.assertNotNull(accessKey2);
         Assert.assertNotNull(accessKey2.getToken());
         Assert.assertNotEquals(accessKey.getToken(), accessKey2.getToken());
@@ -46,11 +46,11 @@ public class UserApiKeysTest {
         Account admin = AccountCreator.createTestAccount("UserApiKeysTest.testGetKeys.Admin", true);
 
         UserApiKeys apiKeys = new UserApiKeys(account.getEmail());
-        AccessKey accessKey = apiKeys.requestKey("app.test");
+        AccessKey accessKey = apiKeys.requestKey("app.test.3");
         Assert.assertNotNull(accessKey);
         Assert.assertNotNull(accessKey.getToken());
 
-        AccessKey accessKey2 = apiKeys.requestKey("app.test");
+        AccessKey accessKey2 = apiKeys.requestKey("app.test.4");
         Assert.assertNotNull(accessKey2);
         Assert.assertNotNull(accessKey2.getToken());
 
@@ -58,9 +58,9 @@ public class UserApiKeysTest {
         AccessKey adminKey = adminApiKeys.requestKey("admin.app.test");
         Assert.assertNotNull(adminKey);
 
-        Results<AccessKey> keys = apiKeys.getKeys(0, 15, "creationTime", true, false);
+        Results<AccessKey> keys = apiKeys.getKeys(15, 0, "creationTime", true, false);
         Assert.assertEquals(2, keys.getResultCount());
-        Assert.assertTrue(adminApiKeys.getKeys(0, 15, "creationTime", true, true).getResultCount() >= 3);
+        Assert.assertTrue(adminApiKeys.getKeys(15, 0, "creationTime", true, true).getResultCount() >= 3);
     }
 
     @Test
@@ -68,14 +68,14 @@ public class UserApiKeysTest {
         Account account = AccountCreator.createTestAccount("UserApiKeysTest.testDeleteKey", false);
 
         UserApiKeys apiKeys = new UserApiKeys(account.getEmail());
-        AccessKey accessKey = apiKeys.requestKey("app.test");
+        AccessKey accessKey = apiKeys.requestKey("app.test.6");
         Assert.assertNotNull(accessKey);
         Assert.assertNotNull(accessKey.getToken());
 
         Assert.assertFalse(apiKeys.deleteKey(accessKey.getId(), "secret"));
         Assert.assertTrue(apiKeys.deleteKey(accessKey.getId(), accessKey.getSecret()));
 
-        Results<AccessKey> keys = apiKeys.getKeys(0, 15, "creationTime", true, false);
+        Results<AccessKey> keys = apiKeys.getKeys(15, 0, "creationTime", true, false);
         Assert.assertEquals(0, keys.getResultCount());
     }
 }

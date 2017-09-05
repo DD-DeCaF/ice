@@ -9,13 +9,15 @@ import org.jbei.ice.lib.dto.sample.SampleType;
 import org.jbei.ice.lib.entry.EntryAuthorization;
 import org.jbei.ice.lib.entry.HasEntry;
 import org.jbei.ice.lib.utils.Utils;
-import org.jbei.ice.storage.DAOException;
 import org.jbei.ice.storage.DAOFactory;
+import org.jbei.ice.storage.hibernate.dao.AccountDAO;
+import org.jbei.ice.storage.hibernate.dao.EntryDAO;
 import org.jbei.ice.storage.hibernate.dao.SampleDAO;
 import org.jbei.ice.storage.hibernate.dao.StorageDAO;
 import org.jbei.ice.storage.model.*;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -28,12 +30,16 @@ public class SampleService extends HasEntry {
 
     private final SampleDAO dao;
     private final StorageDAO storageDAO;
+    private final AccountDAO accountDAO;
+    private final EntryDAO entryDAO;
     private final EntryAuthorization entryAuthorization;
     private final SampleAuthorization sampleAuthorization;
 
     public SampleService() {
         dao = DAOFactory.getSampleDAO();
+        accountDAO = DAOFactory.getAccountDAO();
         storageDAO = DAOFactory.getStorageDAO();
+        entryDAO = DAOFactory.getEntryDAO();
         entryAuthorization = new EntryAuthorization();
         sampleAuthorization = new SampleAuthorization();
     }
@@ -105,7 +111,7 @@ public class SampleService extends HasEntry {
         sample = dao.create(sample);
         String name = entry.getName();
         if (strainNamePrefix != null && name != null && !name.startsWith(strainNamePrefix)) {
-            DAOFactory.getEntryDAO().generateNextStrainNameForEntry(entry, strainNamePrefix);
+            entryDAO.generateNextStrainNameForEntry(entry, strainNamePrefix);
         }
         return sample.toDataTransferObject();
     }
@@ -116,7 +122,7 @@ public class SampleService extends HasEntry {
      *
      * @param sampleDepositor userID - unique identifier for user performing action
      * @param mainLocation    96 well plate location
-     * @return sample storage with a complete hierachy or null
+     * @return sample storage with a complete hierarchy or null
      */
     protected Storage createPlate96Location(String sampleDepositor, StorageLocation mainLocation) {
         // validate: expected format is [PLATE96, WELL, (optional - TUBE)]
@@ -129,7 +135,7 @@ public class SampleService extends HasEntry {
                 String barcode = tube.getDisplay();
                 Storage existing = storageDAO.retrieveStorageTube(barcode);
                 if (existing != null) {
-                    ArrayList<Sample> samples = dao.getSamplesByStorage(existing);
+                    List<Sample> samples = dao.getSamplesByStorage(existing);
                     if (samples != null && !samples.isEmpty()) {
                         Logger.error("Barcode \"" + barcode + "\" already has a sample associated with it");
                         return null;
@@ -147,6 +153,7 @@ public class SampleService extends HasEntry {
         // create storage locations
         Storage currentStorage;
         List<Storage> storageList = storageDAO.retrieveStorageByIndex(mainLocation.getDisplay(), SampleType.PLATE96);
+
         if (storageList != null && storageList.size() > 0) {
             currentStorage = storageList.get(0);
 
@@ -158,7 +165,7 @@ public class SampleService extends HasEntry {
                     return null;
                 }
             }
-        }  else {
+        } else {
             currentStorage = createStorage(sampleDepositor, mainLocation.getDisplay(), mainLocation.getType());
             currentStorage = storageDAO.create(currentStorage);
         }
@@ -214,8 +221,7 @@ public class SampleService extends HasEntry {
         return currentStorage;
     }
 
-
-    public ArrayList<PartSample> retrieveEntrySamples(String userId, String entryId) {
+    public List<PartSample> retrieveEntrySamples(String userId, String entryId) {
         Entry entry = super.getEntry(entryId);
         if (entry == null)
             return null;
@@ -223,20 +229,34 @@ public class SampleService extends HasEntry {
         entryAuthorization.expectRead(userId, entry);
 
         // samples
-        ArrayList<Sample> entrySamples = dao.getSamplesByEntry(entry);
+        List<Sample> entrySamples = dao.getSamplesByEntry(entry);
         ArrayList<PartSample> samples = new ArrayList<>();
         if (entrySamples == null)
             return samples;
 
         boolean inCart = false;
         if (userId != null) {
-            Account userAccount = DAOFactory.getAccountDAO().getByEmail(userId);
+            Account userAccount = accountDAO.getByEmail(userId);
             inCart = DAOFactory.getRequestDAO().getSampleRequestInCart(userAccount, entry) != null;
         }
+        ArrayList<Sample> siblingSamples = new ArrayList<>();
+        for (Sample sample : entrySamples) {
+            Storage storage = sample.getStorage();
+            if (storage == null)
+                continue;
+            if (storage.getParent() != null && storage.getParent().getParent() != null) {
+                siblingSamples.addAll(dao.getSamplesByStorage(storage.getParent().getParent()));
+            }
+        }
+        entrySamples.addAll(siblingSamples);
+
+        Set<Sample> unique = new HashSet<>(entrySamples);
+        entrySamples = new ArrayList<>(unique);
 
         for (Sample sample : entrySamples) {
             // convert sample to info
             Storage storage = sample.getStorage();
+
             if (storage == null) {
                 // dealing with sample with no storage
                 PartSample generic = sample.toDataTransferObject();
@@ -265,22 +285,29 @@ public class SampleService extends HasEntry {
             // get specific sample type and details about it
             PartSample partSample = new PartSample();
             partSample.setId(sample.getId());
-            partSample.setCreationTime(sample.getCreationTime().getTime());
-            partSample.setLabel(sample.getLabel());
+            partSample.setPartId(sample.getEntry().getId());
             partSample.setLocation(storageLocation);
-            partSample.setInCart(inCart);
-            partSample = setAccountInfo(partSample, sample.getDepositor());
-            partSample.setCanEdit(sampleAuthorization.canWrite(userId, sample));
+            partSample.setPartName(sample.getEntry().getName());
+            partSample.setLabel(sample.getLabel());
 
-            if (sample.getComments() != null) {
-                for (Comment comment : sample.getComments()) {
-                    UserComment userComment = new UserComment();
-                    userComment.setId(comment.getId());
-                    userComment.setMessage(comment.getBody());
-                    partSample.getComments().add(userComment);
+            if (sample.getEntry().getId() == entry.getId()) {
+                partSample.setCreationTime(sample.getCreationTime().getTime());
+                partSample.setInCart(inCart);
+                partSample.setCanEdit(sampleAuthorization.canWrite(userId, sample));
+
+                if (sample.getComments() != null) {
+                    for (Comment comment : sample.getComments()) {
+                        UserComment userComment = new UserComment();
+                        userComment.setId(comment.getId());
+                        userComment.setMessage(comment.getBody());
+                        partSample.getComments().add(userComment);
+                    }
                 }
+            } else {
+                partSample.setCanEdit(false);
             }
 
+            partSample = setAccountInfo(partSample, sample.getDepositor());
             samples.add(partSample);
         }
 
@@ -288,7 +315,7 @@ public class SampleService extends HasEntry {
     }
 
     protected PartSample setAccountInfo(PartSample partSample, String email) {
-        Account account = DAOFactory.getAccountDAO().getByEmail(email);
+        Account account = accountDAO.getByEmail(email);
         if (account != null)
             partSample.setDepositor(account.toDataTransferObject());
         else {
@@ -317,40 +344,27 @@ public class SampleService extends HasEntry {
             return false;
 
         sampleAuthorization.expectWrite(userId, sample);
+        Storage storage = sample.getStorage();
+        dao.delete(sample);
 
-        try {
-            Storage storage = sample.getStorage();
-            while (storage != null) {
-                Storage parent = storage.getParent();
+        while (storage != null) {
+            Storage parent = storage.getParent();
 
-                if (storage.getChildren().size() == 0) {
-                    DAOFactory.getStorageDAO().delete(storage);
-                }
-
-                if (parent != null) {
-                    parent.getChildren().remove(storage);
-                    storage = parent;
-                } else {
-                    break;
-                }
+            if (storage.getChildren().size() == 0) {
+                storageDAO.delete(storage);
+            } else {
+                break;
             }
 
-            sample.setStorage(null);
-            dao.delete(sample);
-            return true;
-        } catch (DAOException de) {
-            return false;
-        }
-    }
-
-    public List<StorageLocation> getStorageLocations(String userId, String entryType) {
-        List<Storage> storages = DAOFactory.getStorageDAO().getAllStorageSchemes();
-        ArrayList<StorageLocation> locations = new ArrayList<>();
-        for (Storage storage : storages) {
-            locations.add(storage.toDataTransferObject());
+            if (parent != null) {
+                parent.getChildren().remove(storage);
+                storage = parent;
+            } else {
+                break;
+            }
         }
 
-        return locations;
+        return true;
     }
 
     public ArrayList<PartSample> getSamplesByBarcode(String userId, String barcode) {
@@ -364,7 +378,7 @@ public class SampleService extends HasEntry {
             Entry entry = sample.getEntry();
             if (entry == null)
                 continue;
-
+            Logger.info(entry.getName());
             if (!entryAuthorization.canRead(userId, entry))
                 continue;
 
