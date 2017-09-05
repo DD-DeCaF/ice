@@ -1,5 +1,6 @@
 package org.jbei.ice.lib.parsers.genbank;
 
+import org.jbei.ice.lib.dto.DNAFeatureNote;
 import org.jbei.ice.lib.dto.DNASequence;
 import org.jbei.ice.lib.dto.FeaturedDNASequence;
 import org.junit.Assert;
@@ -43,6 +44,14 @@ public class GenBankParserTest {
         Assert.assertEquals(1, featuresTag.getFeatures().get(1).getNotes().size());
         Assert.assertEquals(7, featuresTag.getFeatures().get(2).getNotes().size());
 
+        DNAFeatureNote note = featuresTag.getFeatures().get(2).getNotes().get(6);
+        Assert.assertEquals("translation", note.getName());
+        Assert.assertEquals("GVARKPGMDRSDLFNVNAGIVKNLVQQVAKTCPKACIGIITNPVNTTVAIAAEVLKKAGVYDKNKLFGVTTLDIIRSNTFVAELKGKQPGEVEVPVIGGHSGVTILPLLSQVPGVSFTEQEVADLTKRIQNAGTEVVEAKAGGGSATLSMG", note.getValue());
+
+        note = featuresTag.getFeatures().get(2).getNotes().get(1);
+        Assert.assertEquals("codon_start", note.getName());
+        Assert.assertEquals("1", note.getValue());
+
         // parse features 3
         tag.setRawBody(features3);
         featuresTag = parser.parseFeaturesTag(tag);
@@ -54,13 +63,16 @@ public class GenBankParserTest {
         Assert.assertEquals(5, featuresTag.getFeatures().get(3).getNotes().size());
     }
 
-    public static String features =
+    public static final String features =
             "FEATURES             Location/Qualifiers\n" +
                     "     RBS             1..12\n" +
+                    "                     /=\n" +
                     "     CDS             19..774\n" +
-                    "     terminator      808..936\n";
+                    "     terminator      808..936\n" +
+                    "                     /ApEinfo_graphicformat=\"arrow_data {{0 1 2 0 0 -1} {} 0}\n" +
+                    "                     width 5 offset 0";
 
-    public static String features2 =
+    public static final String features2 =
             "FEATURES             Location/Qualifiers\n" +
                     "     source          1..452\n" +
                     "                     /organism=\"Escherichia coli\"\n" +
@@ -84,7 +96,7 @@ public class GenBankParserTest {
                     "                     NTTVAIAAEVLKKAGVYDKNKLFGVTTLDIIRSNTFVAELKGKQPGEVEVPVIGGHSG\n" +
                     "                     VTILPLLSQVPGVSFTEQEVADLTKRIQNAGTEVVEAKAGGGSATLSMG\"\n";
 
-    public static String features3 =
+    public static final String features3 =
             "FEATURES             Location/Qualifiers\n" +
                     "     exon            255..457\n" +
                     "                     /number=3\n" +
@@ -105,14 +117,18 @@ public class GenBankParserTest {
                     "                     ARALPFWNEEIVPQIKAGKRVLIAAHGNSLRGIVKHLEGMSDQAIMELNLPTGIPIVY\n" +
                     "                     ELNKELKPTKPMQFLGDEETVRKAMEAVAAQGKAK\"";
 
-    public static String genbank =
+    public static final String genbank =
             "LOCUS       BBa_I0462                936 bp    DNA     linear   UNK 11-May-2016\n" +
                     "DEFINITION  LuxR protein generator\n" +
                     "ACCESSION   BBa_I0462\n" +
                     "FEATURES             Location/Qualifiers\n" +
                     "     RBS             1..12\n" +
+                    "                     /label=BBa_J61130\n" +
                     "     CDS             19..774\n" +
+                    "                     /label=\"BBa_J61107_BBa_C0012\"\n" +
+                    "                     /codon_start=1  \n" +
                     "     terminator      808..936\n" +
+                    "                     /label=BBa_J61107_BBa_C0012\n" +
                     "ORIGIN\n" +
                     "        1 aaagaggaga aatactagat gaaaaacata aatgccgacg acacatacag aataattaat\n" +
                     "       61 aaaattaaag cttgtagaag caataatgat attaatcaat gcttatctga tatgactaaa\n" +
@@ -133,7 +149,7 @@ public class GenBankParserTest {
                     "//\n";
 
 
-    public static String getGenbank2 =
+    public static final String getGenbank2 =
             "LOCUS       AB648464                 452 bp    DNA     linear   BCT 05-SEP-2013\n" +
                     "DEFINITION  Escherichia coli mdh gene for malate dehydrogenase, partial cds,\n" +
                     "            serovar: OUT:H34, isolate: EC04-81.\n" +

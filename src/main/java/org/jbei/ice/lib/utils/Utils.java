@@ -5,11 +5,10 @@ import org.jbei.ice.lib.common.logging.Logger;
 import org.jbei.ice.lib.config.ConfigurationController;
 import org.jbei.ice.lib.dto.ConfigurationKey;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.io.UnsupportedEncodingException;
-import java.io.Writer;
+import java.io.*;
 import java.math.BigInteger;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -106,16 +105,6 @@ public class Utils {
     }
 
     /**
-     * Calculate the SHA-256 hash of the given string.
-     *
-     * @param string plain text to hash.
-     * @return Hex digest of the given string.
-     */
-    public static String encryptSha256(String string) {
-        return encrypt(string, "SHA-256");
-    }
-
-    /**
      * Calculate the message digest of the given message string using the given algorithm.
      *
      * @param string    Plain text message.
@@ -156,5 +145,16 @@ public class Utils {
         if (value != null)
             return value;
         return key.getDefaultValue();
+    }
+
+    public static String getString(InputStream stream) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        Reader reader = new BufferedReader(new InputStreamReader
+                (stream, Charset.forName(StandardCharsets.UTF_8.name())));
+        int c;
+        while ((c = reader.read()) != -1) {
+            builder.append((char) c);
+        }
+        return builder.toString();
     }
 }

@@ -1,27 +1,16 @@
 package org.jbei.ice.storage.hibernate.dao;
 
 import org.jbei.ice.storage.DAOException;
-import org.jbei.ice.storage.hibernate.HibernateUtil;
+import org.jbei.ice.storage.hibernate.HibernateRepositoryTest;
 import org.jbei.ice.storage.model.Account;
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Test;
 
 import java.util.List;
-import java.util.Set;
 
-public class AccountDAOTest {
+public class AccountDAOTest extends HibernateRepositoryTest {
 
-    private AccountDAO dao;
-
-    @BeforeClass
-    public static void setUpBeforeClass() throws Exception {
-        HibernateUtil.initializeMock();
-    }
-
-    @Before
-    public void setUp() {
-        HibernateUtil.beginTransaction();
-        dao = new AccountDAO();
-    }
+    private AccountDAO dao = new AccountDAO();
 
     @Test
     public void testGet() throws DAOException {
@@ -42,7 +31,7 @@ public class AccountDAOTest {
 
         // get by first name (return 4)
         int limit = 4;
-        Set<Account> accounts = dao.getMatchingAccounts("Fir", limit);
+        List<Account> accounts = dao.getMatchingAccounts("Fir", limit);
         Assert.assertEquals(limit, accounts.size());
         for (Account account : accounts) {
             Assert.assertTrue(account.getFirstName().contains("Fir"));
@@ -113,10 +102,5 @@ public class AccountDAOTest {
         account.setIp("127.0.0.1");
         account.setPassword("40ntH@cKm3br0");
         return account;
-    }
-
-    @After
-    public void tearDown() {
-        HibernateUtil.commitTransaction();
     }
 }

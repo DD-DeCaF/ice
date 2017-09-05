@@ -18,7 +18,12 @@ angular.module('ice.search.controller', [])
 
         var runAdvancedSearch = function (filters) {
             $scope.loadingSearchResults = true;
+            if ($scope.params.limit) {
+                $scope.searchFilters.parameters.retrieveCount = $scope.params.limit;
+                filters.parameters.retrieveCount = $scope.params.limit;
+            }
 
+            //console.log(filters);
             Util.post("rest/search", filters, function (result) {
                 $scope.searchResults = result;
                 $scope.loadingSearchResults = false;
@@ -145,14 +150,6 @@ angular.module('ice.search.controller', [])
             //$scope.searchResultPageChanged();
             $scope.searchFilters.parameters.retrieveCount = $scope.params.limit;
             $scope.searchFilters.parameters.start = 0;
-
-            //console.log($scope.searchFilters);
-            //console.log($scope.params);
-            //var offset = (($scope.params.currentPage - 1) * $scope.params.limit) + index;
-            //EntryContextUtil.setContextCallback(function (offset, callback) {
-            //    $scope.searchFilters.parameters.start = offset;
-            //    $scope.searchFilters.parameters.retrieveCount = 1;
-
             runAdvancedSearch($scope.searchFilters);
         };
 

@@ -8,7 +8,6 @@ import org.jbei.ice.storage.hibernate.dao.*;
 public class DAOFactory {
 
     private static AccountDAO accountDAO;
-    private static AccountPreferencesDAO accountPreferencesDAO;
     private static AttachmentDAO attachmentDAO;
     private static BulkUploadDAO bulkUploadDAO;
     private static CommentDAO commentDAO;
@@ -37,17 +36,12 @@ public class DAOFactory {
     private static SequenceFeatureDAO sequenceFeatureDAO;
     private static FeatureDAO featureDAO;
     private static FeatureCurationModelDAO featureCurationModelDAO;
+    private static SelectionMarkerDAO selectionMarkerDAO;
 
     public static AccountDAO getAccountDAO() {
         if (accountDAO == null)
             accountDAO = new AccountDAO();
         return accountDAO;
-    }
-
-    public static AccountPreferencesDAO getAccountPreferencesDAO() {
-        if (accountPreferencesDAO == null)
-            accountPreferencesDAO = new AccountPreferencesDAO();
-        return accountPreferencesDAO;
     }
 
     public static AttachmentDAO getAttachmentDAO() {
@@ -216,5 +210,11 @@ public class DAOFactory {
         if (featureCurationModelDAO == null)
             featureCurationModelDAO = new FeatureCurationModelDAO();
         return featureCurationModelDAO;
+    }
+
+    public static SelectionMarkerDAO getSelectionMarkerDAO() {
+        if (selectionMarkerDAO == null)
+            selectionMarkerDAO = new SelectionMarkerDAO();
+        return selectionMarkerDAO;
     }
 }

@@ -23,6 +23,14 @@ html, body {
     background-color: #f1f1f1;
 }
 
+.gold {
+    color: gold;
+}
+
+.light-blue {
+    color: lightskyblue;
+}
+
 .blue {
     color: #007dbc;
 }
@@ -262,6 +270,10 @@ html, body {
 
 .bg_coral {
     background-color: #ff7f50;
+}
+
+.tooltip {
+    white-space: nowrap !important;
 }
 
 .entry_go_back {
@@ -587,6 +599,15 @@ a:hover {
     box-shadow: 0 0 1px 1px #ddd;
     border-radius: 2px;
     cursor: pointer;
+}
+
+.ice-button:disabled,
+.ice-button[disabled] {
+    border: 1px solid #ccc;
+    background: #eee;
+    color: #777;
+    box-shadow: 0 0 1px 1px #efefef;
+    cursor: default;
 }
 
 .pager_nav {
@@ -1270,13 +1291,18 @@ button[disabled].action-menu:hover {
     cursor: pointer;
 }
 
+.entry-type {
+    opacity: 0.7;
+    font-weight: bold;
+    font-size: 0.85em;
+    text-shadow: 0 1px 0 #fff;
+}
+
 [ng\:cloak], [ng-cloak], [data-ng-cloak], [x-ng-cloak], .ng-cloak, .x-ng-cloak {
     display: none !important;
 }
 
 .table-row-index {
-    vertical-align: middle;
-    line-height: 1;
     opacity: 0.2;
     text-shadow: 0 1px 0 #fff;
     font-weight: bold;
@@ -1422,4 +1448,55 @@ button[disabled].action-menu:hover {
     background-color: #fdfdfd;
     margin-right: 21px;
     cursor: pointer;
+}
+
+.flash {
+    animation-name: flash;
+    animation-duration: 1s;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+    animation-play-state: running;
+}
+
+@keyframes flash {
+    from {
+        color: white;
+    }
+    to {
+        color: black;
+    }
+}
+
+.link-sup {
+    vertical-align: top;
+    right: -7px;
+    position: relative;
+    font-size: 9px;
+    line-height: 0;
+    top: -0.7em;
+    color: darkgray;
+}
+
+.link-sub {
+    vertical-align: bottom;
+    left: -7px;
+    position: relative;
+    font-size: 9px;
+    line-height: 0;
+    bottom: -0.5em;
+    color: darkgray;
+}
+
+.entry_detail_folder_row {
+    border-right: 1px solid #F2F2F2;
+    border-top: 1px solid #F2F2F2;
+    padding: 5px;
+    color: #0082c0;
+    line-height: 15px;
+}
+
+.entry_detail_folder_row:hover {
+    background-color: #F3F1D9;
+    color: #70822e;
 }

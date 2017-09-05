@@ -11,6 +11,7 @@ import org.jbei.ice.lib.dto.comment.UserComment;
 import org.jbei.ice.lib.dto.entry.*;
 import org.jbei.ice.lib.dto.sample.PartSample;
 import org.jbei.ice.lib.dto.web.RegistryPartner;
+import org.jbei.ice.lib.dto.web.WebEntries;
 import org.jbei.ice.lib.entry.sequence.SequenceAnalysisController;
 import org.jbei.ice.servlet.InfoToModelFactory;
 import org.jbei.ice.storage.DAOException;
@@ -135,7 +136,7 @@ public class EntryController extends HasEntry {
         authorization.expectRead(userId, entry);
 
         // comments
-        ArrayList<Comment> comments = commentDAO.retrieveComments(entry);
+        List<Comment> comments = commentDAO.retrieveComments(entry);
         ArrayList<UserComment> userComments = new ArrayList<>();
 
         for (Comment comment : comments) {
@@ -234,7 +235,7 @@ public class EntryController extends HasEntry {
     }
 
     protected boolean canEdit(String userId, String depositor, Entry entry) {
-        return userId.equalsIgnoreCase(depositor) || authorization.canWriteThoroughCheck(userId, entry);
+        return userId.equalsIgnoreCase(depositor) || authorization.canWrite(userId, entry);
     }
 
     public PartStatistics retrieveEntryStatistics(String userId, long entryId) {
@@ -247,12 +248,12 @@ public class EntryController extends HasEntry {
         PartStatistics statistics = new PartStatistics();
         statistics.setEntryId(entryId);
         statistics.setCommentCount(commentDAO.getCommentCount(entry));
-        int sequenceCount = DAOFactory.getTraceSequenceDAO().getTraceSequenceCount(entry) +
+        int sequenceCount = DAOFactory.getTraceSequenceDAO().getCountByEntry(entry) +
                 DAOFactory.getShotgunSequenceDAO().getShotgunSequenceCount(entry);
         statistics.setSequenceCount(sequenceCount);
         int sampleCount = DAOFactory.getSampleDAO().getSampleCount(entry);
         statistics.setSampleCount(sampleCount);
-        int historyCount = DAOFactory.getAuditDAO().getHistoryCount(entry);
+        int historyCount = DAOFactory.getAuditDAO().getAuditsForEntryCount(entry);
         statistics.setHistoryCount(historyCount);
         int eddCount = DAOFactory.getExperimentDAO().getExperimentCount(entryId);
         statistics.setExperimentalDataCount(eddCount);
@@ -274,7 +275,7 @@ public class EntryController extends HasEntry {
         List<Entry> toTrash = new LinkedList<>();
         for (PartData data : list) {
             Entry entry = dao.get(data.getId());
-            if (entry == null || !authorization.canWriteThoroughCheck(userId, entry))
+            if (entry == null || !authorization.canWrite(userId, entry))
                 return false;
 
             toTrash.add(entry);
@@ -311,7 +312,6 @@ public class EntryController extends HasEntry {
             // must be a public entry (todo : move to separate method
             if (!permissionsController.isPubliclyVisible(entry))
                 throw new PermissionException("Not a public entry");
-
             return retrieveEntryDetails(null, entry);
         }
 
@@ -323,8 +323,6 @@ public class EntryController extends HasEntry {
             Logger.error("Could not retrieve share model");
             return null;
         }
-
-        Permission permission = shareModel.getPermission(); // folder must match
 
         // validate access token
         TokenHash tokenHash = new TokenHash();
@@ -347,12 +345,26 @@ public class EntryController extends HasEntry {
             authorization.expectRead(userId, entry);
 
         PartData partData = retrieveEntryDetails(userId, entry);
-        partData.setCanEdit(authorization.canWriteThoroughCheck(userId, entry));
-        partData.setPublicRead(permissionsController.isPubliclyVisible(entry));
+        if (partData.getVisibility() == Visibility.REMOTE)
+            partData.setCanEdit(false);
+        else {
+            partData.setCanEdit(authorization.canWrite(userId, entry));
+            partData.setPublicRead(permissionsController.isPubliclyVisible(entry));
+        }
         return partData;
     }
 
     protected PartData retrieveEntryDetails(String userId, Entry entry) throws PermissionException {
+        if (entry.getVisibility() == Visibility.REMOTE.getValue()) {
+            WebEntries webEntries = new WebEntries();
+            PartData partData = webEntries.getPart(entry.getRecordId());
+            partData.setVisibility(Visibility.REMOTE);
+            partData.setId(entry.getId()); // id returned from remote is different from the local id
+            partData.getParents().clear(); // need to map parents to local
+            // todo : sequence data
+            return partData;
+        }
+
         PartData partData = ModelToInfoFactory.getInfo(entry);
         if (partData == null)
             return null;
@@ -362,11 +374,11 @@ public class EntryController extends HasEntry {
         partData.setHasSequence(hasSequence);
         boolean hasOriginalSequence = sequenceDAO.hasOriginalSequence(entry.getId());
         partData.setHasOriginalSequence(hasOriginalSequence);
-        String sequenceString = sequenceDAO.getSequenceString(entry);
-        if (StringUtils.isEmpty(sequenceString))
-            partData.setBasePairCount(0);
+        Optional<String> sequenceString = sequenceDAO.getSequenceString(entry);
+        if (sequenceString.isPresent())
+            partData.setBasePairCount(sequenceString.get().trim().length());
         else
-            partData.setBasePairCount(sequenceString.trim().length());
+            partData.setBasePairCount(0);
 
         // create audit event if not owner
         // todo : remote access check
@@ -384,10 +396,10 @@ public class EntryController extends HasEntry {
                     continue;
 
                 link = ModelToInfoFactory.createTipView(linkedEntry);
-                String linkedSequenceString = sequenceDAO.getSequenceString(linkedEntry);
+                Optional<String> linkedSequenceString = sequenceDAO.getSequenceString(linkedEntry);
 
-                if (!StringUtils.isEmpty(linkedSequenceString)) {
-                    link.setBasePairCount(linkedSequenceString.length());
+                if (linkedSequenceString.isPresent()) {
+                    link.setBasePairCount(linkedSequenceString.get().trim().length());
                     link.setFeatureCount(DAOFactory.getSequenceFeatureDAO().getFeatureCount(linkedEntry));
                 }
 
@@ -406,7 +418,7 @@ public class EntryController extends HasEntry {
             if (!authorization.canRead(userId, parent))
                 continue;
 
-            if (parent.getVisibility() != Visibility.OK.getValue() && !authorization.canWriteThoroughCheck(userId, entry))
+            if (parent.getVisibility() != Visibility.OK.getValue() && !authorization.canWrite(userId, entry))
                 continue;
 
             EntryType type = EntryType.nameToType(parent.getRecordType());
