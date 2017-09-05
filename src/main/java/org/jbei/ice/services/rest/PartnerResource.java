@@ -9,6 +9,7 @@ import org.jbei.ice.lib.dto.FeaturedDNASequence;
 import org.jbei.ice.lib.dto.entry.AttachmentInfo;
 import org.jbei.ice.lib.dto.entry.PartData;
 import org.jbei.ice.lib.dto.entry.TraceSequenceAnalysis;
+import org.jbei.ice.lib.dto.web.PartnerEntries;
 import org.jbei.ice.lib.dto.web.RegistryPartner;
 import org.jbei.ice.lib.entry.EntrySelection;
 import org.jbei.ice.lib.net.*;
@@ -26,11 +27,18 @@ import java.util.List;
 @Path("/partners")
 public class PartnerResource extends RestResource {
 
+    private final WebPartners webPartners = new WebPartners();
+
+    /**
+     * Retrieve details about a specific partner
+     *
+     * @param partnerId unique partner identifier (either the database id or the url)
+     * @return details about the partner if found
+     */
     @GET
     @Path("{id}")
-    public Response getWebPartner(@PathParam("id") final long partnerId) {
-        requireUserId();
-        WebPartners webPartners = new WebPartners();
+    public Response getWebPartner(@PathParam("id") final String partnerId) {
+        requireUserIdOrWebPartner("retrieving details for partner " + partnerId);
         final RegistryPartner partner = webPartners.get(partnerId);
         return super.respond(Response.Status.OK, partner);
     }
@@ -38,24 +46,13 @@ public class PartnerResource extends RestResource {
     /**
      * Retrieves list of available web partners requested by user or an ICE instance
      *
-     * @param url Optional parameter. URL of partner making requesting. If set, the partner token
-     *            is also required
      * @return list of partners
      */
     @GET
-    public Response getWebPartners(@QueryParam("url") String url) {
-        String userId = getUserId();
+    public Response getWebPartners() {
+        requireUserIdOrWebPartner("retrieving web partners");
         WebPartners webPartners = new WebPartners();
-        try {
-            if (StringUtils.isEmpty(userId))
-                return super.respond(webPartners.getPartners(worPartnerToken, url));
-            log(userId, "retrieving web partners");
-            return super.respond(webPartners.getPartners());
-        } catch (IllegalArgumentException ile) {
-            return super.respond(Response.Status.BAD_REQUEST);
-        } catch (PermissionException pe) {
-            return super.respond(Response.Status.FORBIDDEN);
-        }
+        return super.respond(webPartners.getPartners());
     }
 
     /**
@@ -70,7 +67,6 @@ public class PartnerResource extends RestResource {
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
     public Response addNewPartner(RegistryPartner partner) {
-        WebPartners webPartners = new WebPartners();
         RegistryPartner result;
         String userId = getUserId();
 
@@ -82,7 +78,7 @@ public class PartnerResource extends RestResource {
             result = webPartners.processRemoteWebPartnerAdd(partner);
         } else {
             // local request
-            result = webPartners.addNewPartner(userId, partner);
+            result = webPartners.addNewPartner(userId, partner, super.getThisServer(false));
         }
 
         return super.respond(result);
@@ -308,5 +304,30 @@ public class PartnerResource extends RestResource {
         } catch (IllegalArgumentException e) {
             throw new WebApplicationException(Response.Status.BAD_REQUEST);
         }
+    }
+
+    /**
+     * Retrieves entries for specified partner using the specified paging parameters
+     *
+     * @param partnerId unique identifier for registry partner whose entries are being retrieved
+     * @param offset    record retrieve offset paging parameter
+     * @param limit     maximum number of entries to retrieve
+     * @param sort      field to sort on
+     * @param asc       sort order
+     * @return Response with public entries from registry partners
+     */
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    @Path("/{id}/entries")
+    public Response getWebEntries(
+            @PathParam("id") final long partnerId,
+            @DefaultValue("0") @QueryParam("offset") final int offset,
+            @DefaultValue("15") @QueryParam("limit") final int limit,
+            @DefaultValue("created") @QueryParam("sort") final String sort,
+            @DefaultValue("false") @QueryParam("asc") final boolean asc) {
+        requireUserId();
+        RemoteEntries remoteEntries = new RemoteEntries();
+        PartnerEntries entries = remoteEntries.getPublicEntries(partnerId, offset, limit, sort, asc);
+        return super.respond(Response.Status.OK, entries);
     }
 }

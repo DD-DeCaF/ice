@@ -40,15 +40,18 @@ public class HibernateUtil {
     }
 
     public static void beginTransaction() {
-        getSessionFactory().getCurrentSession().beginTransaction();
+        if (!getSessionFactory().getCurrentSession().getTransaction().isActive())
+            getSessionFactory().getCurrentSession().beginTransaction();
     }
 
     public static void commitTransaction() {
-        getSessionFactory().getCurrentSession().getTransaction().commit();
+        if (getSessionFactory().getCurrentSession().getTransaction().isActive())
+            getSessionFactory().getCurrentSession().getTransaction().commit();
     }
 
     public static void rollbackTransaction() {
-        getSessionFactory().getCurrentSession().getTransaction().rollback();
+        if (getSessionFactory().getCurrentSession().getTransaction().isActive())
+            getSessionFactory().getCurrentSession().getTransaction().rollback();
     }
 
     /**

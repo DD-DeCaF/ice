@@ -1,8 +1,35 @@
 'use strict';
 
 angular.module('ice.admin.controller', [])
-    .controller('AdminController', function ($rootScope, $location, $scope, $stateParams, $cookieStore,
-                                             AdminSettings, Util) {
+    .controller('AdminController', function ($rootScope, $location, $scope, $stateParams, AdminSettings, Util, $interval) {
+        $scope.luceneRebuild = undefined;
+        $scope.blastRebuild = undefined;
+        var lucenePromise;
+        var blastPromise;
+
+        var getLuceneIndexStatus = function () {
+            Util.get("rest/search/indexes/LUCENE/status", function (result) {
+                if (result.total == 0)
+                    $interval.cancel(lucenePromise);
+                $scope.luceneRebuild = {done: result.done, total: result.total};
+            }, {}, function (error) {
+                $interval.cancel(lucenePromise);
+                $scope.luceneRebuild = undefined;
+            })
+        };
+        lucenePromise = $interval(getLuceneIndexStatus, 2000);
+
+        var getBlastStatus = function () {
+            Util.get("rest/search/indexes/BLAST/status", function (result) {
+                if (!result.total)
+                    $interval.cancel(blastPromise);
+                $scope.blastRebuild = {done: result.done, total: result.total};
+            }, {}, function (error) {
+                $interval.cancel(blastPromise);
+                $scope.blastRebuild = undefined;
+            })
+        };
+        blastPromise = $interval(getBlastStatus, 2000);
 
         // save email type settings
         $scope.selectEmailType = function (type) {
@@ -28,8 +55,6 @@ angular.module('ice.admin.controller', [])
 
         // retrieve general setting
         $scope.getSetting = function () {
-            var sessionId = $cookieStore.get("sessionId");
-
             $scope.generalSettings = [];
             $scope.emailSettings = [];
             $scope.emailConfig = {type: "", smtp: "", pass: "", edit: false, showEdit: false, showPass: false};
@@ -39,10 +64,12 @@ angular.module('ice.admin.controller', [])
                 angular.forEach(result, function (setting) {
                     if (AdminSettings.generalSettingKeys().indexOf(setting.key) != -1) {
                         $scope.generalSettings.push({
+                            'originalKey': setting.key,
                             'key': (setting.key.replace(/_/g, ' ')).toLowerCase(),
                             'value': setting.value,
                             'editMode': false,
-                            'isBoolean': AdminSettings.getBooleanKeys().indexOf(setting.key) != -1
+                            'isBoolean': AdminSettings.getBooleanKeys().indexOf(setting.key) != -1,
+                            'canAutoInstall': AdminSettings.canAutoInstall(setting.key)
                         });
                     }
 
@@ -75,45 +102,7 @@ angular.module('ice.admin.controller', [])
         };
 
         var menuOption = $stateParams.option;
-
-        var menuOptions = $scope.adminMenuOptions = [
-            {url: 'scripts/admin/settings.html', display: 'Settings', selected: true, icon: 'fa-cogs'},
-            {
-                id: 'web',
-                url: 'scripts/admin/wor.html',
-                display: 'Web of Registries',
-                selected: false,
-                icon: 'fa-globe',
-                description: 'Share/access entries with/on other ICE instances'
-            },
-            {id: 'users', url: 'scripts/admin/users.html', display: 'Users', selected: false, icon: 'fa-user'},
-            {
-                id: 'groups',
-                url: 'scripts/admin/groups.html',
-                display: 'Public Groups',
-                selected: false,
-                icon: 'fa-group'
-            },
-            {
-                id: 'samples', url: 'scripts/admin/sample-requests.html', display: 'Sample Requests', selected: false,
-                icon: 'fa-shopping-cart'
-            },
-            {
-                id: 'annotations-curation',
-                url: 'scripts/admin/curation.html',
-                display: 'Annotations Curation',
-                description: 'Curate annotations for auto annotations',
-                selected: false,
-                icon: 'fa-language'
-            },
-            {
-                id: 'manuscripts',
-                url: 'scripts/admin/manuscripts.html',
-                display: 'Editor Tools',
-                selected: false,
-                icon: 'fa-newspaper-o'
-            }
-        ];
+        var menuOptions = $scope.adminMenuOptions = AdminSettings.getMenuOptions();
 
         $scope.showSelection = function (index) {
             angular.forEach(menuOptions, function (details) {
@@ -153,11 +142,15 @@ angular.module('ice.admin.controller', [])
         }
 
         $scope.rebuildBlastIndex = function () {
-            Util.update("rest/search/indexes/blast");
+            Util.update("rest/search/indexes/blast", {}, {}, function () {
+                blastPromise = $interval(getBlastStatus, 2000);
+            });
         };
 
         $scope.rebuildLuceneIndex = function () {
-            Util.update("rest/search/indexes/lucene");
+            Util.update("rest/search/indexes/lucene", {}, {}, function () {
+                lucenePromise = $interval(getLuceneIndexStatus, 2000);
+            });
         };
 
         $scope.submitSetting = function (newSetting) {
@@ -178,6 +171,20 @@ angular.module('ice.admin.controller', [])
                 booleanSetting.value = "no";
 
             $scope.submitSetting(booleanSetting);
+        };
+
+        // sends a message to the server to auto install a (general) setting's value
+        $scope.autoInstallSetting = function (setting) {
+            $scope.autoInstalling = setting.originalKey;
+            // put to /rest/config/value
+            Util.update("/rest/config/value", {key: setting.originalKey}, {}, function (result) {
+                console.log(result);
+                if (result.key == setting.originalKey)
+                    setting.value = result.value;
+                $scope.autoInstalling = undefined;
+            }, function (error) {
+                $scope.autoInstalling = undefined;
+            });
         }
     })
     .controller('AdminSampleRequestController', function ($scope, $location, $rootScope, $cookieStore, $uibModal, Util,
@@ -231,8 +238,6 @@ angular.module('ice.admin.controller', [])
         $scope.requestSamples = function () {
             $scope.loadingPage = true;
             var params = angular.copy($scope.params);
-            if (params.status == 'ALL')
-                params.status = undefined;
 
             Util.get("rest/samples/requests", function (result) {
                 $scope.sampleRequests = result;
@@ -241,6 +246,19 @@ angular.module('ice.admin.controller', [])
             }, params, function (error) {
                 $scope.loadingPage = false;
             });
+        };
+
+        $scope.samplesFilterTemplate = "scripts/admin/popover/sample-filter-template.html";
+        $scope.params.status = ['FULFILLED', 'IN_CART', 'PENDING', 'REJECTED'];
+        $scope.samplesRequesterNameTemplate = "scripts/admin/popover/sample-requester-name-filter-template.html";
+
+        $scope.sampleFilterChecked = function (filter) {
+            var idx = $scope.params.status.indexOf(filter);
+            if (idx == -1)
+                $scope.params.status.push(filter);
+            else
+                $scope.params.status.splice(idx, 1);
+            $scope.requestSamples();
         };
 
         // initial sample request (uses default paging values)
@@ -287,13 +305,71 @@ angular.module('ice.admin.controller', [])
                 controller: "AdminSampleLocationSearch",
                 backdrop: "static"
             });
-        }
-    })
-    .controller('AdminSampleLocationSearch', function ($scope, $uibModalInstance, Util) {
-        $scope.closeModal = function () {
-            $uibModalInstance.close();
         };
 
+        $scope.importSamples = function () {
+            var modalInstance = $uibModal.open({
+                templateUrl: 'scripts/admin/modal/import-samples.html',
+                controller: 'AdminSampleImport',
+                backdrop: "static"
+            })
+        };
+
+        $scope.getPrimarySample = function (locations) {
+            if (locations.length != 3)
+                return locations[0];
+
+            for (var i = 0; i < locations.length; i += 1) {
+                if (locations[i].label.indexOf("backup") == -1)
+                    return locations[i];
+            }
+            return locations[0];
+        }
+    })
+    .controller('AdminSampleImport', function ($scope, $uibModalInstance, Util, FileUploader, Authentication) {
+        $scope.progress = 0;
+
+        var uploader = $scope.sampleImportUploader = new FileUploader({
+            scope: $scope, // to automatically update the html. Default: $rootScope
+            url: "rest/samples",
+            method: 'POST',
+            removeAfterUpload: true,
+            headers: {"X-ICE-Authentication-SessionId": Authentication.getSessionId()},
+            autoUpload: true,
+            queueLimit: 1 // can only upload 1 file
+        });
+
+        uploader.onProgressItem = function (item, progress) {
+            $scope.progress = progress;
+        };
+
+        uploader.onSuccessItem = function (item, response, status, header) {
+            $scope.processingFile = false;
+            $scope.result = {success: true, data: response};
+
+            //$scope.serverResult = {data: response, total: response.length, valid: []}
+            //for (var i = 0; i < response.length; i += 1) {
+            //    var datum = response[i];
+            //    if (datum.partData) {
+            //        $scope.serverResult.valid.push(datum.partData.id);
+            //    }
+            //}
+        };
+
+        uploader.onAfterAddingFile = function () {
+            $scope.processingFile = false;
+            $scope.result = {success: false};
+        };
+
+        uploader.onBeforeUploadItem = function () {
+            $scope.processingFile = true;
+        };
+
+        uploader.onCompleteAll = function () {
+            $scope.processingFile = false;
+        };
+    })
+    .controller('AdminSampleLocationSearch', function ($scope, $uibModalInstance, Util) {
         $scope.sample = {};
 
         $scope.searchSampleLocation = function () {
@@ -379,7 +455,6 @@ angular.module('ice.admin.controller', [])
         $scope.groupListPageChanged = function () {
             Util.get("rest/groups", function (result) {
                 $scope.groups = result.data;
-                console.log(result);
                 $scope.adminGroupsPagingParams.available = result.resultCount;
             }, $scope.adminGroupsPagingParams);
         };
@@ -402,53 +477,72 @@ angular.module('ice.admin.controller', [])
                 if (!result)
                     return;
 
-                Util.setFeedback("Public group successfully created", "success");
+                var msg = "Group successfully ";
+                if (group && group.id)
+                    msg += "updated";
+                else
+                    msg += "created";
+                Util.setFeedback(msg, "success");
                 $scope.groupListPageChanged();
+            })
+        };
+
+        $scope.deletePublicGroup = function (group) {
+            Util.remove("rest/groups/" + group.id, null, function () {
+                var i = $scope.groups.indexOf(group);
+                if (i != -1)
+                    $scope.groups.splice(i, 1);
             })
         }
     })
-    .controller('AdminGroupsModalController', function ($scope, $uibModalInstance, currentGroup, Util) {
-        $scope.selectedUsers = [];
+    .controller('AdminGroupsModalController', function ($http, $scope, $cookieStore, $uibModalInstance,
+                                                        currentGroup, Util) {
+        $scope.enteredUser = undefined;
 
-        if (currentGroup)
-            $scope.newPublicGroup = currentGroup;
-        else
-            $scope.newPublicGroup = {type: 'PUBLIC'};
-
-        $scope.closeCreatePublicGroupModal = function () {
-            $uibModalInstance.close();
-        };
-
-        $scope.createNewPublicGroup = function () {
-            $scope.newPublicGroup.members = $scope.selectedUsers;
-            Util.post("rest/groups", $scope.newPublicGroup, function (result) {
-                $uibModalInstance.close(result);
+        if (currentGroup && currentGroup.id) {
+            Util.get("rest/groups/" + currentGroup.id + "/members", function (result) {
+                $scope.newPublicGroup = angular.copy(currentGroup);
+                $scope.newPublicGroup.members = result.members;
             });
-        };
+        } else {
+            $scope.newPublicGroup = {type: 'PUBLIC', members: []};
+        }
 
-        $scope.filterUsers = function (val) {
-            if (!val) {
-                $scope.userMatches = undefined;
-                return;
+        $scope.savePublicGroup = function () {
+            if ($scope.newPublicGroup.id) {
+                Util.update("rest/groups/" + $scope.newPublicGroup.id, $scope.newPublicGroup, {}, function (result) {
+                    $uibModalInstance.close(result);
+                });
+            } else {
+                Util.post("rest/groups", $scope.newPublicGroup, function (result) {
+                    $uibModalInstance.close(result);
+                });
             }
+        };
 
-            $scope.filtering = true;
-
-            Util.list("rest/users/autocomplete", function (result) {
-                $scope.userMatches = result;
-                $scope.filtering = false;
-            }, {limit: 10, val: val}, function (error) {
-                $scope.filtering = false;
-                $scope.userMatches = undefined;
+        $scope.filter = function (val) {
+            return $http.get('rest/users/autocomplete', {
+                headers: {'X-ICE-Authentication-SessionId': $cookieStore.get("sessionId")},
+                params: {
+                    val: val
+                }
+            }).then(function (res) {
+                return res.data;
             });
         };
 
-        $scope.selectUser = function (user) {
-            var index = $scope.selectedUsers.indexOf(user);
-            if (index == -1)
-                $scope.selectedUsers.push(user);
-            else
-                $scope.selectedUsers.splice(index, 1);
+        $scope.userSelectionForGroupAdd = function ($item, $model, $label) {
+            $scope.newPublicGroup.members.push($item);
+
+            // reset
+            $scope.newUserName = undefined;
+            $scope.newPublicGroup.type = 'ACCOUNT';
+        };
+
+        $scope.removeUserFromGroup = function (user) {
+            var index = $scope.newPublicGroup.members.indexOf(user);
+            if (index)
+                $scope.newPublicGroup.members.splice(index, 1);
         };
     })
     .controller('AdminManuscriptsController', function ($scope, $uibModal, $window, $location, Util) {

@@ -5,7 +5,7 @@ angular.module('ice.common.service', [])
         return {
             handleError: function (response) {
                 var type;
-                var errorMsg = response.data.errorMessage;
+                var errorMsg = response.data ? response.data.errorMessage : "Unknown error";
 
                 switch (response.status) {
                     case 401:
@@ -166,10 +166,12 @@ angular.module('ice.common.service', [])
                 }).delete(successHandler, errorCallback)
             },
 
-            download: function (url, a) {
+            download: function (url, postData) {
+                var m = postData ? "POST" : "GET";
                 var down = $resource(url, {}, {
                     download: {
-                        method: 'POST',
+                        method: m,
+                        headers: {'X-ICE-Authentication-SessionId': $cookieStore.get('sessionId')},
                         responseType: 'arraybuffer',
                         transformResponse: function (data, headers) {
                             return {
@@ -184,7 +186,13 @@ angular.module('ice.common.service', [])
                     }
                 });
 
-                return down.download(a);
+                return down.download(postData);
+            },
+
+            constants: function () {
+                return {
+                    REMOTE_ENTRY_SELECTED: "EntrySelected"
+                }
             }
         }
     });

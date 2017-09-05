@@ -6,6 +6,8 @@ angular.module('ice.entry.controller', [])
         // create a uploader with options
         var sid = $cookieStore.get("sessionId");
         var desc = "";
+        $scope.uploadError = undefined;
+
         $scope.$watch('attachmentDescription', function () {
             desc = $scope.attachmentDescription;
         });
@@ -20,12 +22,22 @@ angular.module('ice.entry.controller', [])
             }
         });
 
+        uploader.onAfterAddingFile = function (item) {
+            $scope.uploadError = undefined;
+        };
+
         uploader.onSuccessItem = function (item, response, status, headers) {
             response.description = desc;
+            $scope.uploadError = undefined;
             Util.post("rest/parts/" + $stateParams.id + "/attachments", response, function (result) {
                 $scope.attachments.push(result);
                 $scope.cancel();
             });
+        };
+
+        uploader.onErrorItem = function (item, response, status, headers) {
+            console.log(item, response, status, headers);
+            $scope.uploadError = true;
         };
 
         $scope.cancel = function () {
@@ -168,7 +180,7 @@ angular.module('ice.entry.controller', [])
         };
     })
     .controller('ShotgunSequenceUploadModalController', function ($scope, FileUploader, $uibModalInstance, entryId,
-                                                                $cookieStore) {
+                                                                  $cookieStore) {
         $scope.cancelAddShotgunSequence = function () {
             $uibModalInstance.dismiss('cancel');
         };
@@ -203,7 +215,7 @@ angular.module('ice.entry.controller', [])
             $scope.shotgunUploadError = true;
         };
     })
-    .controller('TraceSequenceController', function ($scope, $window, $cookieStore, $stateParams, FileUploader, $uibModal, Util) {
+    .controller('TraceSequenceController', function ($scope, $window, $cookieStore, $stateParams, FileUploader, $uibModal, Util, Authentication) {
         var entryId = $stateParams.id;
 
         $scope.traceUploadError = undefined;
@@ -245,6 +257,24 @@ angular.module('ice.entry.controller', [])
             });
         };
 
+        $scope.downloadAllTraces = function () {
+            var clickEvent = new MouseEvent("click", {
+                "view": window,
+                "bubbles": true,
+                "cancelable": false
+            });
+
+            Util.download("rest/parts/" + entryId + "/traces/all?sid=" + Authentication.getSessionId()).$promise.then(function (result) {
+                var url = URL.createObjectURL(new Blob([result.data]));
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = result.filename();
+                a.target = '_blank';
+                a.dispatchEvent(clickEvent);
+                $scope.selectedRequests = [];
+            });
+        };
+
         $scope.deleteTraceSequenceFile = function (fileId) {
             var foundTrace;
             var foundIndex;
@@ -270,8 +300,7 @@ angular.module('ice.entry.controller', [])
             $window.open("rest/file/trace/" + trace.fileId + "?sid=" + $cookieStore.get("sessionId"), "_self");
         };
     })
-    .controller('TraceSequenceUploadModalController', function ($scope, FileUploader, $uibModalInstance, entryId,
-                                                                $cookieStore) {
+    .controller('TraceSequenceUploadModalController', function ($scope, FileUploader, $uibModalInstance, entryId, Authentication) {
         $scope.cancelAddSangerTrace = function () {
             $uibModalInstance.dismiss('cancel');
         };
@@ -282,7 +311,7 @@ angular.module('ice.entry.controller', [])
             method: 'POST',
             removeAfterUpload: true,
             headers: {
-                "X-ICE-Authentication-SessionId": $cookieStore.get("sessionId")
+                "X-ICE-Authentication-SessionId": Authentication.getSessionId()
             },
             autoUpload: true,
             queueLimit: 1, // can only upload 1 file
@@ -424,7 +453,7 @@ angular.module('ice.entry.controller', [])
             queueLimit: 1 // can only upload 1 file
         });
 
-        uploader.onProgressItem = function (event, item, progress) {
+        uploader.onProgressItem = function (item, progress) {
             $scope.serverError = undefined;
 
             if (progress != "100")  // isUploading is always true until it returns
@@ -1003,11 +1032,25 @@ angular.module('ice.entry.controller', [])
             removePermission(permission.id);
         };
     })
-    .controller('EntryFoldersController', function ($scope, Util) {
+    .controller('EntryFoldersController', function ($rootScope, $scope, Util) {
         $scope.containedFolders = undefined;
-        Util.list("rest/parts/" + $scope.entry.id + "/folders", function (result) {
+        Util.list("rest/parts/" + $scope.entry.recordId + "/folders", function (result) {
             $scope.containedFolders = result;
         });
+
+        $scope.removeEntryFromFolder = function (folder) {
+            Util.post("rest/folders/" + folder.id + "/entries",
+                {entries: [$scope.entry.id], folderId: folder.id}, function (result) {
+                    if (result) {
+                        $rootScope.$broadcast("RefreshAfterDeletion");
+                        $scope.$broadcast("UpdateCollectionCounts");
+                        Util.setFeedback('1 entry removed from folder', 'success');
+                        var i = $scope.containedFolders.indexOf(folder);
+                        if (i >= 0)
+                            $scope.containedFolders.splice(i, 1);
+                    }
+                }, {move: false});
+        };
     })
     .controller('EntryDetailsController', function ($scope) {
         var entryPanes = $scope.entryPanes = [];
@@ -1041,7 +1084,7 @@ angular.module('ice.entry.controller', [])
         $scope.sessionId = sessionId;
 
         $scope.open = function () {
-            window.open('static/swf/ve/VectorEditor?entryId=' + $scope.entry.id + '&sessionId=' + sessionId);
+            window.open('static/swf/ve/VectorEditor?entryId=' + $scope.entry.recordId + '&sessionId=' + sessionId);
         };
 
         $scope.sequenceUpload = function (type) {
@@ -1509,7 +1552,7 @@ angular.module('ice.entry.controller', [])
             queueLimit: 1 // can only upload 1 file
         });
 
-        uploader.onProgressItem = function (event, item, progress) {
+        uploader.onProgressItem = function (item, progress) {
             $scope.serverError = undefined;
 
             if (progress != "100")  // isUploading is always true until it returns
@@ -1594,7 +1637,7 @@ angular.module('ice.entry.controller', [])
                             angular.forEach(result.features, function (feature) {
                                     //console.log(feature);
                                     //if (feature.strand == 1)
-                                        feature.length = (feature.locations[0].end - feature.locations[0].genbankStart) + 1;
+                                    feature.length = (feature.locations[0].end - feature.locations[0].genbankStart) + 1;
                                     //else
                                     //feature.length = (feature.locations[0].genbankStart - feature.locations[0].end) + 1;
                                 }

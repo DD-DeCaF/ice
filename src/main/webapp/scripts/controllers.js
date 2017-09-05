@@ -4,7 +4,7 @@ var iceControllers = angular.module('iceApp.controllers', ['iceApp.services', 'u
     'angularMoment']);
 
 iceControllers.controller('ActionMenuController', function ($stateParams, $uibModal, $scope, $window, $rootScope,
-                                                            $location, $cookieStore, Selection, FolderSelection, Util) {
+                                                            $location, Selection, FolderSelection, Util, RemoteSelection) {
     $scope.editDisabled = $scope.addToDisabled = $scope.removeDisabled = $scope.moveToDisabled = $scope.deleteDisabled = true;
     $scope.entrySelected = false;
 
@@ -17,6 +17,7 @@ iceControllers.controller('ActionMenuController', function ($stateParams, $uibMo
     });
 
     $scope.selectedFolders = [];
+    $scope.selectedRemote = RemoteSelection.getSelection();
 
     $scope.closeFeedbackAlert = function () {
         Util.clearFeedback();
@@ -170,7 +171,11 @@ iceControllers.controller('ActionMenuController', function ($stateParams, $uibMo
     });
 
     $scope.canAddToFolder = function () {
-        return !$scope.addToDisabled && !this.isDealingWithDeleted();
+        return (!$scope.addToDisabled || $scope.selectedRemote.length) && !this.isDealingWithDeleted();
+    };
+
+    $scope.canExport = function () {
+        return FolderSelection.getSelectedFolder() != undefined || Selection.hasSelection();
     };
 
     $scope.canEdit = function () {
@@ -178,7 +183,7 @@ iceControllers.controller('ActionMenuController', function ($stateParams, $uibMo
     };
 
     $scope.canDelete = function () {
-        return Selection.canDelete();
+        return Selection.canEdit() && Selection.canDelete();
     };
 
 // Working in "deleted" collection or with deleted entry
@@ -234,7 +239,7 @@ iceControllers.controller('ActionMenuController', function ($stateParams, $uibMo
         if (selectedEntries.length > 1) {
             var type;
             for (type in Selection.getSelectedTypes()) {
-                break;
+                break;   // todo : ??
             }
 
             // first create bulk upload
@@ -252,10 +257,9 @@ iceControllers.controller('ActionMenuController', function ($stateParams, $uibMo
         $scope.editDisabled = true;
     };
 
-// todo : getEntrySelection() should be moved to Selection
     $scope.csvExport = function (includeSequences) {
         var selection = getEntrySelection();
-        var formats = {sequenceFormats: []};
+        var formats = {sequenceFormats: []};//, entryFields: ["name"]};
         if (includeSequences)
             formats.sequenceFormats.push("genbank");
 
@@ -263,9 +267,26 @@ iceControllers.controller('ActionMenuController', function ($stateParams, $uibMo
         Util.post("rest/file/csv", selection, function (result) {
             if (result && result.value) {
                 $window.open("rest/file/tmp/" + result.value, "_self");
-                Selection.reset();
             }
         }, formats);
+    };
+
+    $scope.customizeExport = function () {
+        var modalInstance = $uibModal.open({
+            controller: "CustomExportController",
+            templateUrl: "views/modal/custom-export-modal.html",
+            backdrop: 'static',
+            size: 'lg',
+            resolve: {
+                selectedTypes: function () {
+                    return Selection.getSelectedTypes()
+                },
+
+                selection: function () {
+                    return getEntrySelection();
+                }
+            }
+        });
     };
 
     $rootScope.$on("CollectionSelected", function (event, data) {
@@ -351,8 +372,7 @@ iceControllers.controller('ActionMenuController', function ($stateParams, $uibMo
             Util.setFeedback('Transfer of ' + entrySelection.length + word + ' successfully accepted', 'success');
         }
     }
-})
-;
+});
 
 iceControllers.controller('TransferEntriesToPartnersModal', function ($scope, $uibModalInstance, Util, FolderSelection,
                                                                       $stateParams, Selection, selectedFolder) {
@@ -422,7 +442,6 @@ iceControllers.controller('TransferEntriesToPartnersModal', function ($scope, $u
         partner.selected = !partner.selected
     };
 
-
     //
     // init
     //
@@ -430,11 +449,62 @@ iceControllers.controller('TransferEntriesToPartnersModal', function ($scope, $u
     $scope.retrieveRegistryPartners();
 });
 
+iceControllers.controller('CustomExportController', function ($scope, $uibModalInstance, selectedTypes, selection, EntryService, Util) {
+    console.log(selectedTypes);
+
+    var fields = EntryService.getCommonFields();
+    $scope.fields = [];
+    angular.forEach(fields, function (field) {
+        $scope.fields.push(field.label);
+    });
+
+    $scope.sequence = {format: "FASTA"};
+    $scope.general = {};
+
+    $scope.selectAll = function (format) {
+        if (!format)
+            format = 'general';
+
+        switch (format) {
+            case "general":
+                break;
+
+            case "sample":
+                break;
+
+            case "sequence":
+                break;
+        }
+    };
+
+    $scope.customExport = function () {
+        $scope.processingDownload = true;
+
+        var clickEvent = new MouseEvent("click", {
+            "view": window,
+            "bubbles": true,
+            "cancelable": false
+        });
+
+        Util.download("rest/parts/custom", selection).$promise.then(function (result) {
+            var url = URL.createObjectURL(new Blob([result.data]));
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = result.filename();
+            a.target = '_blank';
+            a.dispatchEvent(clickEvent);
+
+            // close dialog
+            $scope.processingDownload = false;
+            $uibModalInstance.close()
+        });
+    }
+});
+
 iceControllers.controller('AddToFolderController', function ($rootScope, $scope, $uibModalInstance, Util, FolderSelection,
-                                                             Selection, move, selectedFolder, $stateParams) {
+                                                             Selection, RemoteSelection, move, selectedFolder, $stateParams) {
 
     // get folders that I can edit
-
     $scope.getPersonalFolders = function () {
         Util.list("rest/folders", function (result) {
             $scope.userFolders = result;
@@ -444,10 +514,6 @@ iceControllers.controller('AddToFolderController', function ($rootScope, $scope,
     // init
     $scope.selectedFolders = [];
     $scope.newFolder = {creating: false};
-
-    $scope.closeModal = function (res) {
-        $uibModalInstance.close(res);
-    };
 
     // create entry selection object that provides context for user selection
     var getEntrySelection = function () {
@@ -470,6 +536,7 @@ iceControllers.controller('AddToFolderController', function ($rootScope, $scope,
             selectionType: selectionType,
             entryType: Selection.getSelection().type,
             entries: [],
+            remoteEntries: [],
             destination: angular.copy($scope.selectedFolders)
         };
 
@@ -477,6 +544,10 @@ iceControllers.controller('AddToFolderController', function ($rootScope, $scope,
         for (var i = 0; i < selectedEntriesObjectArray.length; i += 1) {
             entrySelection.entries.push(selectedEntriesObjectArray[i].id);
         }
+
+        for (var j = 0; j < RemoteSelection.getSelection().length; j += 1)
+            entrySelection.remoteEntries.push(RemoteSelection.getSelection()[j]);
+
         return entrySelection;
     };
 
@@ -539,7 +610,7 @@ iceControllers.controller('AddToFolderController', function ($rootScope, $scope,
                     $rootScope.$emit("RefreshAfterDeletion");
                     $scope.updateSelectedFolderCounts();
                     Selection.reset();
-                    $scope.closeModal(res);
+                    $uibModalInstance.close(res);
                 }
             });
         }
@@ -549,6 +620,8 @@ iceControllers.controller('AddToFolderController', function ($rootScope, $scope,
 iceControllers.controller('RegisterController', function ($scope, $resource, $location, Util) {
     $scope.errMsg = undefined;
     $scope.registerSuccess = undefined;
+    $scope.processing = undefined;
+
     $scope.newUser = {
         firstName: undefined,
         lastName: undefined,
@@ -559,8 +632,8 @@ iceControllers.controller('RegisterController', function ($scope, $resource, $lo
 
     $scope.submit = function () {
         var validates = true;
+        $scope.processing = true;
         // validate
-        console.log($scope.newUser);
 
         if (!$scope.newUser.firstName) {
             $scope.firstNameError = true;
@@ -587,16 +660,20 @@ iceControllers.controller('RegisterController', function ($scope, $resource, $lo
             validates = false;
         }
 
-        if (!validates)
+        if (!validates) {
+            $scope.processing = false;
             return;
+        }
 
         Util.post("rest/users", $scope.newUser, function (data) {
+            $scope.processing = false;
             if (data.length != 0)
                 $scope.registerSuccess = true;
             else
                 $scope.errMsg = "Could not create account";
         }, {}, function (error) {
             $scope.errMsg = "Error creating account";
+            $scope.processing = false;
         });
     };
 

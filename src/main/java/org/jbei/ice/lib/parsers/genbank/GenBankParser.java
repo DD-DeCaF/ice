@@ -1,10 +1,9 @@
 package org.jbei.ice.lib.parsers.genbank;
 
+import org.apache.commons.lang3.StringUtils;
 import org.jbei.ice.lib.dto.*;
 import org.jbei.ice.lib.parsers.AbstractParser;
 import org.jbei.ice.lib.parsers.InvalidFormatParserException;
-import org.jbei.ice.lib.utils.FileUtils;
-import org.jbei.ice.lib.utils.UtilityException;
 import org.jbei.ice.lib.utils.Utils;
 
 import java.util.*;
@@ -14,7 +13,7 @@ import java.util.regex.Pattern;
 /**
  * Genbank parser and generator. The Genbank file format is defined in gbrel.txt located at
  * ftp://ftp.ncbi.nlm.nih.gov/genbank/gbrel.txt
- * <p>
+ * <p/>
  * This parser also handles some incorrectly formatted and obsolete genbank files.
  *
  * @author Timothy Ham
@@ -61,44 +60,24 @@ public class GenBankParser extends AbstractParser {
     // TODO parse source feature tag with xdb_ref
     @Override
     public DNASequence parse(String textSequence) throws InvalidFormatParserException {
-        if (textSequence == null || textSequence.isEmpty())
-            throw new InvalidFormatParserException("Cannot parse empty genbank sequence");
+        FeaturedDNASequence sequence;
+        textSequence = cleanSequence(textSequence);
 
-        FeaturedDNASequence sequence = null;
-        try {
-            textSequence = cleanSequence(textSequence);
+        ArrayList<Tag> tags = splitTags(textSequence, NORMAL_TAGS, IGNORE_TAGS);
+        tags = parseTags(tags);
 
-            ArrayList<Tag> tags = splitTags(textSequence, NORMAL_TAGS, IGNORE_TAGS);
-            tags = parseTags(tags);
-
-            sequence = new FeaturedDNASequence();
-            for (final Tag tag : tags) {
-                if (tag instanceof LocusTag) {
-                    sequence.setName(((LocusTag) tag).getLocusName());
-                    sequence.setIsCircular(((LocusTag) tag).isCircular());
-                } else if (tag instanceof OriginTag) {
-                    sequence.setSequence(((OriginTag) tag).getSequence());
-                } else if (tag instanceof FeaturesTag) {
-                    sequence.setFeatures(((FeaturesTag) tag).getFeatures());
-                }
+        sequence = new FeaturedDNASequence();
+        for (final Tag tag : tags) {
+            if (tag instanceof LocusTag) {
+                sequence.setName(((LocusTag) tag).getLocusName());
+                sequence.setIsCircular(((LocusTag) tag).isCircular());
+            } else if (tag instanceof OriginTag) {
+                sequence.setSequence(((OriginTag) tag).getSequence());
+            } else if (tag instanceof FeaturesTag) {
+                sequence.setFeatures(((FeaturesTag) tag).getFeatures());
             }
-        } catch (NullPointerException | StringIndexOutOfBoundsException e) {
-            recordParsingError(textSequence, e);
         }
         return sequence;
-    }
-
-    /**
-     * If there is a parsing error of interest, write the file to disk, and send an email to admin.
-     */
-    private void recordParsingError(final String fileText, final Exception e)
-            throws InvalidFormatParserException {
-        final String message = "Error parsing genBank file. Please examine the recorded file.";
-        try {
-            FileUtils.recordAndReportFile(message, fileText, e);
-        } catch (final UtilityException e1) {
-            throw new InvalidFormatParserException("failed to write error");
-        }
     }
 
     private ArrayList<Tag> splitTags(final String block, final String[] acceptedTags,
@@ -227,6 +206,18 @@ public class GenBankParser extends AbstractParser {
         return result;
     }
 
+    private boolean isMultiLineQualifer(String line) {
+        if (StringUtils.isEmpty(line) || !line.contains("="))
+            return false;
+
+        String[] split = line.split("=");
+        if (split.length != 2)
+            return false;
+
+        String value = split[1];
+        return value.startsWith("\"") && !value.endsWith("\"");
+    }
+
     protected FeaturesTag parseFeaturesTag(final Tag tag) throws InvalidFormatParserException {
         final FeaturesTag result = new FeaturesTag();
         result.setKey(tag.getKey());
@@ -246,15 +237,15 @@ public class GenBankParser extends AbstractParser {
         DNAFeature dnaFeature = null;
 
         boolean isQualifierMultiline = false;
+
         for (int i = 1; i < lines.length; i += 1) {
             String line = lines[i].trim();
             boolean isQualifier = ((line.startsWith("/") && line.contains("="))) || isQualifierMultiline;
             if (isQualifier) {
-                if (!qualifierBlock.toString().isEmpty() && !qualifierBlock.toString().endsWith("\n"))  // and is not an empty string
+                if (!qualifierBlock.toString().isEmpty() && !qualifierBlock.toString().endsWith("\n"))
                     qualifierBlock.append("\n");
                 qualifierBlock.append(line);
-                isQualifierMultiline = !line.endsWith("\"");
-//                .append("\n");
+                isQualifierMultiline = isMultiLineQualifer(line);
                 continue;
             }
 
@@ -350,20 +341,19 @@ public class GenBankParser extends AbstractParser {
         return result;
     }
 
+    /**
+     * Qualifiers are interesting beasts. The values can be quoted or not quoted. They can span
+     * multiple lines. Older versions used backslash to indicate space ("\\" -> " "). Oh, and it
+     * uses two quotes in a row to ("") to indicate a literal quote (e.g. "\""). And since each
+     * genbank feature does not have a specified "label" field, the label can be anything. Some
+     * software uses "label", another uses "notes", and some of the examples in gbrel.txt uses
+     * "gene". But really, it could be anything. Qualifier "translation" must be handled
+     * differently from other multi-line fields, as they are expected to be concatenated without
+     * spaces.
+     * <p/>
+     * This parser tries to normalize to "label", and preserve quotedness.
+     */
     private DNAFeature parseQualifiers(final String block, DNAFeature dnaFeature) {
-        /*
-         * Qualifiers are interesting beasts. The values can be quoted or not quoted. They can span
-         * multiple lines. Older versions used backslash to indicate space ("\\" -> " "). Oh, and it
-         * uses two quotes in a row to ("") to indicate a literal quote (e.g. "\""). And since each
-         * genbank feature does not have a specified "label" field, the label can be anything. Some
-         * software uses "label", another uses "notes", and some of the examples in gbrel.txt uses
-         * "gene". But really, it could be anything. Qualifer "translation" must be handled
-         * differently from other multi-line fields, as they are expected to be concatenated without
-         * spaces.
-         * 
-         * This parser tries to normalize to "label", and preserve quotedness.
-         */
-
         final ArrayList<DNAFeatureNote> notes = new ArrayList<>();
         if ("".equals(block)) {
             return dnaFeature;
