@@ -8,9 +8,9 @@
 
     <session-factory>
         <property name="hibernate.connection.driver_class">org.postgresql.Driver</property>
-        <property name="hibernate.connection.url">jdbc:postgresql://localhost:5433/ice</property>
+        <property name="hibernate.connection.url">jdbc:postgresql://ice_db:8432/icedb</property>
         <property name="hibernate.connection.username">ice</property>
-        <property name="hibernate.connection.password">testpass</property>
+        
         <property name="hibernate.dialect">org.hibernate.dialect.PostgreSQLDialect</property>
 
         <property name="hibernate.search.default.indexBase">./data/lucene-data</property>
@@ -23,8 +23,8 @@
         <property name="hibernate.c3p0.idle_test_period">100</property>
         <property name="hibernate.c3p0.debugUnreturnedConnectionStackTraces">true</property>
         <property name="hibernate.c3p0.acquireRetryAttempts">0</property>
-        <!-- wait 30secs before attempting to acquire db connection after a failed attempt -->
-        <property name="hibernate.c3p0.acquireRetryDelay">30000</property>
+        <!-- wait 3secs before attempting to acquire db connection after a failed attempt -->
+        <property name="hibernate.c3p0.acquireRetryDelay">3000</property>
         <property name="hibernate.c3p0.privilegeSpawnedThreads">true</property>
         <property name="hibernate.c3p0.contextClassLoaderSource">library</property>
 
@@ -43,6 +43,7 @@
 
         <!-- format -->
         <property name="hibernate.format_sql">true</property>
+        <property name="use_sql_comments">true</property>
 
         <!-- Drop and re-create the database schema on startup (normally it should be validate) -->
         <property name="hibernate.hbm2ddl.auto">update</property>

@@ -1,6 +1,21 @@
-web:
-    build: .
-    dockerfile: Dockerfile
-    ports:
-        - 8080:8080
-        - 8443:8443
+version: '2'
+
+services:
+    web:
+        build: .
+        ports:
+            - 8080:8080
+            - 8443:8443
+        depends_on:
+            - ice_db
+
+    ice_db:
+        image: postgres:latest
+        hostname: ice_db
+        container_name: ice_db
+        environment:
+            - POSTGRES_USER=ice
+            - POSTGRES_DB=icedb
+            - PGPORT=8432
+        ports:
+            - "8432:8432"
