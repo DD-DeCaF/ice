@@ -1,7 +1,6 @@
 package org.jbei.ice.lib.account.authentication;
 
 import org.jbei.ice.lib.account.AccountController;
-import org.jbei.ice.lib.common.logging.Logger;
 import org.jbei.ice.storage.DAOFactory;
 import org.jbei.ice.storage.model.Account;
 
@@ -58,9 +57,7 @@ public class LblLdapAuthentication implements IAuthentication {
         }
 
         loginId = loginId.toLowerCase().trim();
-
         String ldap_email = LDAPAuthentication(loginId, password);
-
         if (ldap_email != null) {
             return ldap_email;
         } else {
@@ -145,16 +142,11 @@ public class LblLdapAuthentication implements IAuthentication {
             cons.setCountLimit(0);
 
             if (dirContext == null) {
-                dirContext = getContext();
-            }
-
-            if (dirContext == null){
-                return null;
+                dirContext = getAuthenticatedContext(userName, passWord);
             }
 
             String LDAP_QUERY = "ou=DTUBaseUsers,dc=win,dc=dtu,dc=dk";
             NamingEnumeration searchResult_list = dirContext.search(LDAP_QUERY, filter, cons);
-
             if (!searchResult_list.hasMore())
             {
                 return null;
@@ -164,7 +156,6 @@ public class LblLdapAuthentication implements IAuthentication {
 
             Attributes attributes = searchResult.getAttributes();
             //employeeNumber = (String) attributes.get("lblempnum").get();
-
             if (attributes.get("givenName") != null) {
                 givenName = (String) attributes.get("givenName").get();
             }
@@ -175,33 +166,18 @@ public class LblLdapAuthentication implements IAuthentication {
                 email = (String) attributes.get("mail").get();
             }
             email = email.toLowerCase();
-            /** organization = "Lawrence Berkeley Laboratory";
-            if (attributes.get("description") != null) {
-                description = (String) attributes.get("description").get();
-            } **/
-            authContext = getAuthenticatedContext(userName, passWord);
-
-            authContext.close();
             dirContext.close(); //because authentication should be the last step
         } catch (NamingException e) {
             throw new AuthenticationException("Got LDAP NamingException", e);
         } finally {
-            if (authContext != null) {
+            if (dirContext != null){
                 try {
-                    authContext.close();
-                } catch (NamingException e) {
-                    throw new AuthenticationException("Got LDAP NamingException", e);
-                }
-            }
-            try {
-                if (dirContext != null){
                     dirContext.close();
-                }
-            } catch (NamingException e) {
-                throw new AuthenticationException("Got LDAP NamingException", e);
+                } catch (NamingException e) {
+                   throw new AuthenticationException("Got LDAP NamingException", e);
+            }
             }
         }
-
         return email;
     }
 
@@ -235,35 +211,6 @@ public class LblLdapAuthentication implements IAuthentication {
      * @return {@link javax.naming.directory.DirContext} object.
      * @throws javax.naming.NamingException
      */
-    protected DirContext getContext() throws NamingException {
-        Hashtable<String, String> env = new Hashtable<String, String>();
-        env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
-        env.put("com.sun.jndi.ldap.connect.pool", "true");
-        env.put("com.sun.jndi.ldap.connect.pool.timeout", "100");
-
-        env.put("com.sun.jndi.ldap.read.timeout", "5000");
-        env.put("com.sun.jndi.ldap.connect.timeout", "100");
-
-        env.put(Context.PROVIDER_URL, ldapProvider);
-        env.put(Context.SECURITY_AUTHENTICATION, "simple");
-
-
-        env.put(Context.SECURITY_PRINCIPAL, ldapUser);
-
-        env.put(Context.SECURITY_CREDENTIALS,ldapPass);
-
-        LdapContext ctx = null;
-        try {
-            ctx = new InitialLdapContext(env, null);
-        } catch (CommunicationException e){
-            return null;
-        } catch (NamingException e) {
-            e.printStackTrace();
-            throw e;
-        }
-
-        return ctx;
-    }
 
     /**
      * Get authenticated context from the ldap server. Failure means bad user or password.
@@ -282,6 +229,7 @@ public class LblLdapAuthentication implements IAuthentication {
         env.put("com.sun.jndi.ldap.read.timeout", "5000");
         env.put("com.sun.jndi.ldap.connect.timeout", "10000");
 
+
         env.put(Context.PROVIDER_URL, ldapProvider);
         env.put(Context.SECURITY_AUTHENTICATION, "simple");
         env.put(Context.SECURITY_PRINCIPAL, String.format("%s@win", userName));
@@ -294,7 +242,7 @@ public class LblLdapAuthentication implements IAuthentication {
 
     private void initialize() {
         if (!initialized) {
-            ldapProvider = System.getenv("LDAP_PROVIDER");
+            ldapProvider = "ldap://win.dtu.dk";
             ldapUser = System.getenv("LDAP_USER");
             ldapPass = System.getenv("LDAP_PASS");
             initialized = true;

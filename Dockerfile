@@ -4,14 +4,22 @@ WORKDIR /ice
 
 COPY . .
 
-RUN mvn clean install
+RUN mvn clean install -DskipTests -B -nsu
 
 FROM tomcat:8.5-jre8-alpine as deploy
 
 RUN apk update && apk upgrade
 RUN apk add --no-cache bash curl openssl
 
-COPY ./.keystore /usr/local/tomcat/
+RUN keytool -genkey -noprompt \
+    -alias tomcat \
+    -keyalg RSA \
+    -keystore /usr/local/tomcat/.keystore \
+    -storepass changeit \
+    -keypass changeit \
+    -dname "CN=Lyngby, OU=ILoop, O=CFB, L=Christian, S=Ravn, C=DK"
+
+
 COPY ./server.xml /usr/local/tomcat/conf/
 COPY ./conf/context.xml /usr/local/tomcat/conf/
 
