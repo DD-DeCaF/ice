@@ -1,3 +1,0 @@
-CREATE USER ice;
-CREATE DATABASE icedb with owner ice;
-GRANT ALL PRIVILEGES ON DATABASE icedb TO ice;

@@ -32,6 +32,4 @@ WORKDIR ./webapps
 
 COPY --from=build /ice/target/ice*.war ROOT.war
 
-EXPOSE 8443
-
 CMD ["catalina.sh", "run"]

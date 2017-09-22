@@ -7,15 +7,12 @@ services:
             - 8080:8080
             - 8443:8443
         depends_on:
-            - ice_db
+            - db
 
-    ice_db:
+    db:
         image: postgres:latest
-        hostname: ice_db
-        container_name: ice_db
+        hostname: db
+        container_name: db
         environment:
             - POSTGRES_USER=ice
             - POSTGRES_DB=icedb
-            - PGPORT=8432
-        ports:
-            - "8432:8432"
