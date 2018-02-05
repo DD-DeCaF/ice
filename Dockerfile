@@ -1,10 +1,27 @@
-FROM tomcat:8.5-jre8-alpine
+FROM maven:3.5-jdk-8-alpine as build
+
+WORKDIR /ice
+
+COPY . .
+
+RUN mvn clean install -DskipTests -B -nsu
+
+FROM tomcat:8.5-jre8-alpine as deploy
 
 RUN apk update && apk upgrade
 RUN apk add --no-cache bash curl openssl
 
-COPY ./.keystore /usr/local/tomcat/
+RUN keytool -genkey -noprompt \
+    -alias tomcat \
+    -keyalg RSA \
+    -keystore /usr/local/tomcat/.keystore \
+    -storepass changeit \
+    -keypass changeit \
+    -dname "CN=Lyngby, OU=ILoop, O=CFB, L=Christian, S=Ravn, C=DK"
+
+
 COPY ./server.xml /usr/local/tomcat/conf/
+COPY ./conf/context.xml /usr/local/tomcat/conf/
 
 WORKDIR /usr/local/tomcat
 
@@ -13,12 +30,6 @@ RUN mkdir webapps
 
 WORKDIR ./webapps
 
-RUN curl -s https://api.github.com/repos/dd-decaf/ice/releases/latest | grep browser_download_url | head -n 1 | cut -d '"' -f 4 > download_url
-RUN cat download_url | xargs -n 1 curl -O -L
-
-RUN mv ice*.war ROOT.war
-RUN rm download_url
-
-EXPOSE 8443
+COPY --from=build /ice/target/ice*.war ROOT.war
 
 CMD ["catalina.sh", "run"]
