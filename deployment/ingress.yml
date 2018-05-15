@@ -1,0 +1,17 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ice
+spec:
+  tls:
+  - hosts:
+    - ice.dd-decaf.eu
+    secretName: decaf-tls
+  rules:
+  - host: ice.dd-decaf.eu
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: ice-production
+          servicePort: 80
