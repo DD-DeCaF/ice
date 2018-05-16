@@ -19,9 +19,20 @@ spec:
         image: gcr.io/dd-decaf-cfbf6/ice:master
         ports:
         - containerPort: 8080
+        resources:
+          requests:
+            cpu: "9m"
+            memory: "1Gi"
+          limits:
+            cpu: "475m"
       - name: cloudsql-proxy
         image: gcr.io/cloudsql-docker/gce-proxy:1.11
         command: ["/cloud_sql_proxy", "-instances=dd-decaf-cfbf6:europe-west1:dd-decaf=tcp:5432", "-credential_file=/secrets/cloudsql/credentials.json"]
+        resources:
+          requests:
+            cpu: "1m"
+          limits:
+            cpu: "25m"
         volumeMounts:
           - name: cloudsql-instance-credentials
             mountPath: /secrets/cloudsql
