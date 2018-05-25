@@ -13,5 +13,5 @@ spec:
       paths:
       - path: /
         backend:
-          serviceName: ice-production
+          serviceName: ice
           servicePort: 80
