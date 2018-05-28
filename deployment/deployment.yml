@@ -19,6 +19,7 @@ spec:
         image: gcr.io/dd-decaf-cfbf6/ice:master
         ports:
         - containerPort: 8080
+        - containerPort: 8443
         resources:
           requests:
             cpu: "9m"
