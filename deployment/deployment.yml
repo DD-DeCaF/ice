@@ -26,6 +26,12 @@ spec:
             memory: "1Gi"
           limits:
             cpu: "475m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 300
+          periodSeconds: 60
       - name: cloudsql-proxy
         image: gcr.io/cloudsql-docker/gce-proxy:1.11
         command: ["/cloud_sql_proxy", "-instances=dd-decaf-cfbf6:europe-west1:dd-decaf=tcp:5432", "-credential_file=/secrets/cloudsql/credentials.json"]
