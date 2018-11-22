@@ -22,10 +22,9 @@ spec:
         - containerPort: 8443
         resources:
           requests:
-            cpu: "9m"
-            memory: "1Gi"
+            cpu: "100m"
           limits:
-            cpu: "475m"
+            cpu: "2000m"
         livenessProbe:
           httpGet:
             path: /
@@ -37,9 +36,9 @@ spec:
         command: ["/cloud_sql_proxy", "-instances=dd-decaf-cfbf6:europe-west1:dd-decaf=tcp:5432", "-credential_file=/secrets/cloudsql/credentials.json"]
         resources:
           requests:
-            cpu: "1m"
+            cpu: "100m"
           limits:
-            cpu: "25m"
+            cpu: "2000m"
         volumeMounts:
           - name: cloudsql-instance-credentials
             mountPath: /secrets/cloudsql
